@@ -1,0 +1,107 @@
+# 离线安装docker
+
+## 1. 前提
+
+- rpm：软件包管理工具
+- `yumdownloader`：可以下载但不安装rpm。
+
+## 2. 思路
+
+1. 先用`yum`现在docker所有的依赖rpm包。
+2. 将这些rpm包保存到内网机
+3. 使用rpm命令安装这些离线包。
+
+## 3. 步骤
+
+1. 配置`docker`镜像仓库
+
+```bash
+yum install -y yum-utils device-mapper-persistent-data lvm2
+yum-config-manager --add-repo http://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
+```
+
+2. 安装需要的依赖
+
+```bash
+yum provides '*/applydeltarpm'
+yum install -y deltarpm
+```
+
+3. 下载docker以及依赖的rpm包
+
+```bash
+yumdownloader --resolve --destdir ./tmp docker-ce docker-ce-cli containerd.io
+```
+
+4. 将所有rpm包打包并放到离线机上（可以打成压缩包，拷贝过去后再解压）
+
+```bash
+tar -cf docker-ce.offline.tar *.rpm
+```
+
+5. 再内网机执行安装
+
+```bash
+tar -zxvf docker-ce.offline.tar
+rpm -ivh --replacefiles --replacepkgs *.rpm
+```
+
+<font color="#dd0000">必须加上 `--replacefiles` ，`--replacepkgs`两个参数。</font> 
+
+6. 启动docker
+
+```bash
+systemctl start docker
+```
+
+# 离线导入`docker image`
+
+## 1. 基础知识
+
+- `docker save`
+  - 导出一个或者多个image到压缩文件
+  - 导出的格式跟image格式一样，由docker file构建而成。
+- `docker load:`
+- `docker export`
+  - 导出一个或多个container到压缩文件
+  - 是一个完整的Linux系统，用于制作基础镜像。
+- `docker import`
+
+## 2. 思路
+
+1. 将联网的机器上下载docker image
+2. 使用`docker save`/`docker export` 导出image为tar
+
+3. 再内网机导入 docker load/import
+
+## 3. 操作
+
+以离线安装`redis image`为例
+
+1. 下载redis image
+
+```bash
+docker pull redis
+```
+
+2. 找出要导出image的image id，导出为tar包
+
+```bash
+# 获取要导出的imageid
+docker images
+docker save -o redis.tar 7eed8df88d3b
+```
+
+3. 将tar包拷贝到内网机
+4. 内网机导入我们的tar包
+
+```bash
+docker load -i redis.tar
+```
+
+5. image已经导入完成，但是这个image只有image id，没有name。为它添加一个tag
+
+```bash
+docker tag 24bd3d9520d7 reids:lasted
+```
+
