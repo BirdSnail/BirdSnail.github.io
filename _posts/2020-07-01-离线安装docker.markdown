@@ -108,6 +108,6 @@ docker tag 24bd3d9520d7 reids:lasted
 6. 启动redis
 
 ```bash
-docker run -v ~/redis/redis.conf:/usr/local/etc/redis/redis.conf -v ~/redis/data:/data --name myredis redis redis-server /usr/local/etc/redis/redis.conf
+docker run -v ~/redis/redis.conf:/usr/local/etc/redis/redis.conf -v ~/redis/data:/data --name myredis -d redis redis-server /usr/local/etc/redis/redis.conf
 ```
 
