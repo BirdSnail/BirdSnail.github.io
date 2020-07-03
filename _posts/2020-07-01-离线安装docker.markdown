@@ -4,6 +4,7 @@
 
 - rpm：软件包管理工具
 - `yumdownloader`：可以下载但不安装rpm。
+  - 使用 `--installroot /path/tmp_path`选项可以下载本机已经安装好的依赖
 
 ## 2. 思路
 
@@ -30,8 +31,82 @@ yum install -y deltarpm
 3. 下载docker以及依赖的rpm包
 
 ```bash
-yumdownloader --resolve --destdir ./tmp docker-ce docker-ce-cli containerd.io
+yumdownloader --installroot /var/tmp/docker-repo --resolve --destdir ./tmp docker-ce docker-ce-cli containerd.io
 ```
+
+> 因为原始yum仓库访问的外网，可能无法下载对应的rpm包出现Base Url等错误，需要我们配置yum仓库镜像。
+>
+> 1. 备份我们原始yun配置
+>
+> ```bash
+> mv /etc/yum.repos.d/CentOS-Base.repo /etc/yum.repos.d/CentOS-Base.repo.back
+> ```
+>
+> 2. 自定义我们的`CentOS-Base.repo `
+>
+> ```bash
+> vim  /etc/yum.repos.d/CentOS-Base.repo 
+> ```
+>
+> ​	内容如下
+>
+> ```shell
+> # CentOS-Base.repo
+> #
+> # The mirror system uses the connecting IP address of the client and the
+> # update status of each mirror to pick mirrors that are updated to and
+> # geographically close to the client.  You should use this for CentOS updates
+> # unless you are manually picking other mirrors.
+> #
+> # If the mirrorlist= does not work for you, as a fall back you can try the
+> # remarked out baseurl= line instead.
+> #
+> #
+>  
+> [base]
+> name=CentOS-$releasever - Base
+> baseurl=https://mirrors.tuna.tsinghua.edu.cn/centos/7/os/$basearch/
+> #mirrorlist=http://mirrorlist.centos.org/?release=$releasever&arch=$basearch&repo=os
+> gpgcheck=1
+> gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
+>  
+> #released updates
+> [updates]
+> name=CentOS-$releasever - Updates
+> baseurl=https://mirrors.tuna.tsinghua.edu.cn/centos/7/updates/$basearch/
+> #mirrorlist=http://mirrorlist.centos.org/?release=$releasever&arch=$basearch&repo=updates
+> gpgcheck=1
+> gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
+>  
+> #additional packages that may be useful
+> [extras]
+> name=CentOS-$releasever - Extras
+> baseurl=https://mirrors.tuna.tsinghua.edu.cn/centos/7/extras/$basearch/
+> #mirrorlist=http://mirrorlist.centos.org/?release=$releasever&arch=$basearch&repo=extras
+> gpgcheck=1
+> gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
+>  
+> #additional packages that extend functionality of existing packages
+> [centosplus]
+> name=CentOS-$releasever - Plus
+> baseurl=https://mirrors.tuna.tsinghua.edu.cn/centos/7/centosplus/$basearch/
+> #mirrorlist=http://mirrorlist.centos.org/?release=$releasever&arch=$basearch&repo=centosplus
+> gpgcheck=1
+> enabled=0
+> gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
+> ```
+>
+> 3. 重新建立缓存
+>
+> ```bash
+> yum clean all
+> rm -rf  /var/cache/yum/
+> yum makecache
+> ```
+>
+> 4. 再次执行 `yumdownloader`
+
+
 
 4. 将所有rpm包打包并放到离线机上（可以打成压缩包，拷贝过去后再解压）
 
@@ -42,7 +117,7 @@ tar -cf docker-ce.offline.tar *.rpm
 5. 再内网机执行安装
 
 ```bash
-tar -zxvf docker-ce.offline.tar
+tar -xvf docker-ce.offline.tar
 rpm -ivh --replacefiles --replacepkgs *.rpm
 ```
 
@@ -52,6 +127,9 @@ rpm -ivh --replacefiles --replacepkgs *.rpm
 
 ```bash
 systemctl start docker
+systemctl enable docker
+sudo gpasswd -a $USER docker     #将登陆用户加入到docker用户组中
+newgrp docker     #更新用户组
 ```
 
 # 离线导入`docker image`
@@ -108,6 +186,6 @@ docker tag 24bd3d9520d7 reids:lasted
 6. 启动redis
 
 ```bash
-docker run -v ~/redis/redis.conf:/usr/local/etc/redis/redis.conf -v ~/redis/data:/data --name myredis -d redis redis-server /usr/local/etc/redis/redis.conf
+docker run -v ~/redis/redis.conf:/usr/local/etc/redis/redis.conf -v ~/redis/data:/data --name myredis -d  -p 6379:6379 redis redis-server /usr/local/etc/redis/redis.conf
 ```
 
